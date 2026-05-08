@@ -19,5 +19,4 @@ public interface SatelliteService {
     List<Satellite> findAll();
     Optional<Satellite> findById(UUID id);
     Optional<Satellite> update(UUID id, String name, BigDecimal latitude, BigDecimal longitude);
-    boolean delete(UUID id);
 }
