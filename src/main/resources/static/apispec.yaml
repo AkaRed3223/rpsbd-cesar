@@ -1,0 +1,543 @@
+openapi: 3.0.3
+info:
+  title: RPSBD — GPS Tracking API
+  description: |
+    Remote Position Satellite-Based Device API.
+
+    Satellites report the current position of a user's device. The system stores
+    every location event and exposes endpoints to query the last known position
+    or the full location history for a given user.
+  version: 1.0.0
+  contact:
+    name: ITA
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development
+  - url: https://my-server/api/v1
+    description: PROD environment
+
+tags:
+  - name: Users
+    description: Manage tracked users and their devices
+  - name: Locations
+    description: Query last known position and location history
+  - name: Satellites
+    description: Register satellites and report user positions
+
+paths:
+
+  # ─── Users ──────────────────────────────────────────────────────────────────
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List all users
+      operationId: getAllUsers
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedUsers'
+
+    post:
+      tags: [Users]
+      summary: Create a user with a device
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+            example:
+              name: Cesar
+              deviceImei: "356938035643809"
+              deviceType: PHONE
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      operationId: getUserById
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Users]
+      summary: Update user name and device
+      operationId: updateUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Users]
+      summary: Delete user
+      operationId: deleteUser
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '204':
+          description: User deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─── Locations ──────────────────────────────────────────────────────────────
+
+  /users/{userId}/locations/last:
+    get:
+      tags: [Locations]
+      summary: Get last known location for a user
+      operationId: getLastKnownLocation
+      parameters:
+        - $ref: '#/components/parameters/PathUserId'
+      responses:
+        '200':
+          description: Last known location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLocationResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{userId}/locations:
+    get:
+      tags: [Locations]
+      summary: Get location history for a user
+      operationId: getLocationHistory
+      parameters:
+        - $ref: '#/components/parameters/PathUserId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: Paginated location history (most recent first)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedLocations'
+
+  # ─── Satellites ─────────────────────────────────────────────────────────────
+
+  /satellites:
+    get:
+      tags: [Satellites]
+      summary: List all registered satellites
+      operationId: getAllSatellites
+      responses:
+        '200':
+          description: List of satellites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SatelliteResponse'
+
+    post:
+      tags: [Satellites]
+      summary: Register a new satellite
+      operationId: registerSatellite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSatelliteRequest'
+            example:
+              name: SAT-001
+              latitude: -23.55052
+              longitude: -46.63330
+      responses:
+        '201':
+          description: Satellite registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SatelliteResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /satellites/{id}:
+    put:
+      tags: [Satellites]
+      summary: Update satellite name
+      operationId: updateSatellite
+      parameters:
+        - $ref: '#/components/parameters/SatelliteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSatelliteRequest'
+      responses:
+        '200':
+          description: Satellite updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SatelliteResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Satellites]
+      summary: Delete satellite
+      operationId: deleteSatellite
+      parameters:
+        - $ref: '#/components/parameters/SatelliteId'
+      responses:
+        '204':
+          description: Satellite deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /satellites/report:
+    post:
+      tags: [Satellites]
+      summary: Report a user's current position
+      description: |
+        Called by a satellite when it detects a device. Creates a new location
+        event linked to both the user and the reporting satellite.
+      operationId: reportLocation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SatelliteReportRequest'
+            example:
+              satelliteId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+              userId: "d4e5f6a7-b8c9-0123-def0-123456789abc"
+              latitude: -23.55052
+              longitude: -46.63330
+      responses:
+        '201':
+          description: Location event recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLocationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: User or satellite not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+# ─── Components ─────────────────────────────────────────────────────────────
+
+components:
+
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    PathUserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    SatelliteId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 0
+
+    Size:
+      name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 20
+
+    Sort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        example: name,asc
+
+  schemas:
+
+    DeviceType:
+      type: string
+      enum: [PHONE, TABLET, COMPUTER]
+
+    DeviceResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        imei:
+          type: string
+        type:
+          $ref: '#/components/schemas/DeviceType'
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        device:
+          $ref: '#/components/schemas/DeviceResponse'
+
+    CreateUserRequest:
+      type: object
+      required: [name, deviceImei, deviceType]
+      properties:
+        name:
+          type: string
+        deviceImei:
+          type: string
+        deviceType:
+          $ref: '#/components/schemas/DeviceType'
+
+    SatelliteResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+
+    CreateSatelliteRequest:
+      type: object
+      required: [name, latitude, longitude]
+      properties:
+        name:
+          type: string
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+
+    UpdateSatelliteCoordinatesRequest:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+
+    UpdateUserRequest:
+      type: object
+      required: [name, deviceImei, deviceType]
+      properties:
+        name:
+          type: string
+        deviceImei:
+          type: string
+        deviceType:
+          $ref: '#/components/schemas/DeviceType'
+
+    UpdateSatelliteRequest:
+      type: object
+      required: [name, latitude, longitude]
+      properties:
+        name:
+          type: string
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+
+    UserLocationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        reportedAt:
+          type: string
+          format: date-time
+        satelliteId:
+          type: string
+          format: uuid
+          nullable: true
+
+    SatelliteReportRequest:
+      type: object
+      required: [satelliteId, userId, latitude, longitude]
+      properties:
+        satelliteId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+
+    PagedUsers:
+      type: object
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserResponse'
+
+    PagedLocations:
+      type: object
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserLocationResponse'
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequest:
+      description: Invalid request body
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
